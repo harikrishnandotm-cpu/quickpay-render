@@ -1,0 +1,17 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: ${SERVICE_NAME:payment-service}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:payment_db}
+    username: ${DB_USER:quickpay}
+    password: ${DB_PASSWORD:quickpay-local}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+app:
+  customer-url: ${CUSTOMER_SERVICE_URL:http://localhost:8081}
+  merchant-url: ${MERCHANT_SERVICE_URL:http://localhost:8082}

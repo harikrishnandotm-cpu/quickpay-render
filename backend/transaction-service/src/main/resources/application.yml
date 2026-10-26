@@ -1,0 +1,20 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: ${SERVICE_NAME:transaction-service}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:transaction_db}
+    username: ${DB_USER:quickpay}
+    password: ${DB_PASSWORD:quickpay-local}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: quickpay-transaction
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.quickpay,java.util
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.HashMap

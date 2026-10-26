@@ -1,0 +1,9 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: ${SERVICE_NAME:merchant-service}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:merchant_db}
+    username: ${DB_USER:quickpay}
+    password: ${DB_PASSWORD:quickpay-local}
