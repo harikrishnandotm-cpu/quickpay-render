@@ -7,12 +7,18 @@ import {
 } from "lucide-react";
 import "./style.css";
 
-const money = (amount) => new Intl.NumberFormat("en-US", {
-  style: "currency", currency: "USD"
+const money = (amount) => new Intl.NumberFormat("en-IN", {
+  style: "currency", currency: "INR", maximumFractionDigits: 2
 }).format(Number(amount || 0));
 
+
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || ""
+).replace(/\/$/, "");
+
 async function api(path, options = {}, token = "") {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -20,8 +26,15 @@ async function api(path, options = {}, token = "") {
       ...options.headers
     }
   });
+
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || payload.message || "Something went wrong");
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error || payload.message || "Something went wrong"
+    );
+  }
+
   return payload;
 }
 
@@ -169,18 +182,42 @@ export function App() {
 
   async function pay(event) {
     event.preventDefault();
+    if (busy) return;
+
+    const selectedMerchant = merchants.find((merchant) => String(merchant.id) === String(merchantId));
+    const paymentAmount = Number(amount);
+    if (!selectedMerchant) {
+      setError("Please choose a valid merchant.");
+      return;
+    }
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setError(`Amount must be greater than ₹0 for ${selectedMerchant.name}.`);
+      return;
+    }
+    if (paymentAmount > Number(balance)) {
+      setError(`Insufficient balance to complete this payment to ${selectedMerchant.name}.`);
+      return;
+    }
+
     setBusy(true);
     setError("");
     try {
       const result = await api("/payments", {
         method: "POST",
-        body: JSON.stringify({ merchantId: Number(merchantId), amount: Number(amount) })
+        body: JSON.stringify({ merchantId: Number(merchantId), amount: paymentAmount })
       }, session.token);
-      setToast(result.message);
+      setToast(result.message || "Payment completed successfully.");
       setAmount("");
-      setCustomer((current) => ({ ...current, balance: Number(current.balance) - Number(result.amount) }));
+      await refreshData();
     } catch (err) {
-      setError(err.message);
+      const message = err.message || "Unable to complete payment.";
+      const merchantName = selectedMerchant.name;
+      const merchantAwareMessage = /insufficient balance/i.test(message)
+        ? `Insufficient balance to complete this payment to ${merchantName}.`
+        : /amount.*(greater|positive|zero)|non.?positive/i.test(message)
+          ? `Amount must be greater than ₹0 for ${merchantName}.`
+          : message;
+      setError(merchantAwareMessage);
     } finally {
       setBusy(false);
     }
@@ -197,7 +234,7 @@ export function App() {
         <Brand />
         <div className="sidebar-label">YOUR SPACE</div>
         <nav className="side-nav">
-          {navItems.map(({ id, label, icon: Icon }) => <button key={id} className={page === id ? "nav-link active" : "nav-link"} onClick={() => { setPage(id); setError(""); }}>
+          {navItems.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-label={label} className={page === id ? "nav-link active" : "nav-link"} onClick={() => { setPage(id); setError(""); }}>
             <Icon size={17} strokeWidth={1.8} /><span>{label}</span>{id === "activity" && <span className="nav-count">{transactions.length}</span>}
           </button>)}
         </nav>
@@ -231,7 +268,7 @@ function Overview({ firstName, balance, transactions, goPay, goActivity }) {
     weekday: "long", month: "long", day: "numeric"
   }).format(new Date()).toUpperCase();
   return <section>
-    <div className="welcome-row"><div><p className="eyebrow">{today}</p><h1>Good to see you, {firstName}<span className="greeting-dot">.</span></h1><p className="page-subtitle">Here's your wallet, looking good.</p></div><button className="primary-button" aria-label="View transactions" onClick={goPay}><ArrowUpRight size={16} /> Make a payment</button></div>
+    <div className="welcome-row"><div><p className="eyebrow">{today}</p><h1>Good to see you, {firstName}<span className="greeting-dot">.</span></h1><p className="page-subtitle">Here's your wallet, looking good.</p></div><button className="primary-button" onClick={goPay}><ArrowUpRight size={16} /> Make a payment</button></div>
     <div className="overview-grid">
       <article className="balance-card"><div className="balance-top"><span className="balance-label"><Wallet size={16} /> Available balance</span><span className="balance-badge"><i /> Ready to use</span></div><div className="balance-amount">{money(balance)}</div><div className="balance-bottom"><span>Demo wallet balance</span><span><ShieldCheck size={14} /> Protected account</span></div><div className="balance-watermark"><span /><span /><span /></div></article>
       <article className="quick-card"><div className="quick-card-title"><span className="quick-icon"><ArrowUpRight size={18} /></span><div><b>Pay someone new</b><small>Quick, clear and secure</small></div></div><p>Choose a merchant and make a payment from your demo balance.</p><button className="text-button" onClick={goPay}>Start a payment <ArrowUpRight size={14} /></button></article>
@@ -247,7 +284,7 @@ function PaymentPage({ merchants, merchantId, setMerchantId, amount, setAmount, 
     <div className="payment-layout">
       <form className="payment-card" onSubmit={onSubmit}>
         <label>Choose a merchant<select required value={merchantId} onChange={(event) => setMerchantId(event.target.value)}><option value="" disabled>Select a merchant</option>{merchants.map((merchant) => <option key={merchant.id} value={merchant.id}>{merchant.name} · {merchant.category}</option>)}</select></label>
-        <label>Payment amount<div className="amount-input"><span>$</span><input required type="number" min="1.00" max="50000" step="0.01" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} /></div></label>
+        <label>Payment amount<div className="amount-input"><span>₹</span><input required type="number" min="0.01" max="50000" step="0.01" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} /></div></label>
         <div className="available-note"><span>Available to spend</span><b>{money(balance)}</b></div>
         <button className="primary-button pay-submit" disabled={busy || !merchants.length}>{busy ? "Processing…" : "Review & pay"}<ArrowUpRight size={16} /></button>
         <p className="form-disclaimer"><ShieldCheck size={14} /> This demo uses your local wallet balance. No external payment provider is connected.</p>
