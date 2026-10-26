@@ -3,26 +3,27 @@ package com.quickpay;
 
 import java.util.List;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 @Configuration
 public class CorsConfig {
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public FilterRegistrationBean<CorsFilter> corsFilter() {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allow Vercel frontend
         config.setAllowedOrigins(List.of(
             "https://quickpay-render.vercel.app"
         ));
 
-        // Allowed HTTP methods
         config.setAllowedMethods(List.of(
             "GET",
             "POST",
@@ -32,20 +33,24 @@ public class CorsConfig {
             "OPTIONS"
         ));
 
-        // Allowed request headers
-        config.setAllowedHeaders(List.of(
-            "Content-Type",
-            "Authorization",
-            "X-Customer-Id"
-        ));
+        config.setAllowedHeaders(List.of("*"));
 
         config.setAllowCredentials(true);
+
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source =
             new UrlBasedCorsConfigurationSource();
 
         source.registerCorsConfiguration("/**", config);
 
-        return source;
+        CorsFilter corsFilter = new CorsFilter(source);
+
+        FilterRegistrationBean<CorsFilter> registration =
+            new FilterRegistrationBean<>(corsFilter);
+
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+
+        return registration;
     }
 }
