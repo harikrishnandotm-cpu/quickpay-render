@@ -1,7 +1,10 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+  address: 0.0.0.0
+
 spring:
   application:
     name: ${SERVICE_NAME:api-gateway}
+
 app:
-  jwt-secret: ${JWT_SECRET:local-only-change-this-secret-before-deployment-123456}
+  jwt-secret: ${JWT_SECRET}
