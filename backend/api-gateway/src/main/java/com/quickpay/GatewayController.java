@@ -1,4 +1,3 @@
-
 package com.quickpay;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,7 +7,12 @@ import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.ResourceAccessException;
+
 import java.io.IOException;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -18,9 +22,16 @@ class GatewayController {
 
     private final JwtService jwt;
     private final Map<String, String> serviceUrls;
+    private final RestClient client;
 
     GatewayController(JwtService jwt, Environment env) {
         this.jwt = jwt;
+
+        // Timeouts: a sleeping Render service can take ~60s to wake up
+        var factory = new JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
+        factory.setReadTimeout(Duration.ofSeconds(90));
+        this.client = RestClient.builder().requestFactory(factory).build();
 
         serviceUrls = Map.of(
             "auth", env.getProperty("CUSTOMER_SERVICE_URL", "http://localhost:8081"),
@@ -93,15 +104,11 @@ class GatewayController {
             request.getInputStream()
         );
 
-        RestClient client = RestClient.builder()
-            .baseUrl(baseUrl)
-            .build();
-
         String finalCustomerId = customerId;
 
         RestClient.RequestBodySpec downstream =
             client.method(HttpMethod.valueOf(request.getMethod()))
-                .uri(downstreamPath)
+                .uri(baseUrl + downstreamPath)
                 .headers(headers -> {
 
                     MediaType contentType = incoming.getContentType();
@@ -119,6 +126,7 @@ class GatewayController {
             downstream.body(body);
         }
 
+        try {
         return downstream.exchange((req, res) -> {
 
             HttpHeaders responseHeaders = new HttpHeaders();
@@ -135,5 +143,11 @@ class GatewayController {
                 res.getStatusCode()
             );
         });
+        } catch (ResourceAccessException ex) {
+            return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":\"The service is waking up or unreachable. Please retry in a minute.\"}"
+                    .getBytes(StandardCharsets.UTF_8));
+        }
     }
 }
