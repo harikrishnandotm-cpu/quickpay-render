@@ -1,8 +1,11 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+  address: 0.0.0.0
+
 spring:
   application:
     name: ${SERVICE_NAME:merchant-service}
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:merchant_db}
     username: ${DB_USER:quickpay}
