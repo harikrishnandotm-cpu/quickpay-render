@@ -38,6 +38,19 @@ async function api(path, options = {}, token = "") {
   return payload;
 }
 
+// Wakes the sleeping backend services while the user is still on the sign-in screen.
+async function warmUpBackend() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/warmup`);
+      if (response.ok) return;
+    } catch (networkError) {
+      // the gateway itself is still starting - try again shortly
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+}
+
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
@@ -140,6 +153,10 @@ export function App() {
     localStorage.setItem("quickpay-session", JSON.stringify(session));
     refreshData();
   }, [session?.token]);
+
+    useEffect(() => {
+    if (import.meta.env.MODE !== "test") warmUpBackend();
+  }, []);
 
   async function refreshData() {
     setLoading(true);
